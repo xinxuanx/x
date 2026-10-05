@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GPT-H3 Project IR",
+  "type": "object",
+  "required": [
+    "project_id",
+    "version",
+    "spec",
+    "assets",
+    "shots",
+    "runtime",
+    "lineage"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "aspect_ratio",
+        "total_duration_s",
+        "visual_style"
+      ],
+      "properties": {
+        "aspect_ratio": {
+          "type": "string"
+        },
+        "width": {
+          "type": "integer"
+        },
+        "height": {
+          "type": "integer"
+        },
+        "total_duration_s": {
+          "type": "number"
+        },
+        "visual_style": {
+          "type": "string"
+        },
+        "dialogue_language": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "delivery": {
+          "type": "string"
+        }
+      }
+    },
+    "assets": {
+      "type": "object",
+      "properties": {
+        "characters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "scenes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        },
+        "props": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/artifact"
+          }
+        }
+      }
+    },
+    "shots": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "shot_id",
+          "duration_s",
+          "status"
+        ],
+        "properties": {
+          "shot_id": {
+            "type": "string"
+          },
+          "duration_s": {
+            "type": "number",
+            "maximum": 15
+          },
+          "status": {
+            "type": "string"
+          },
+          "character_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scene_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prompt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reference_assets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "spatial_anchors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "audio_cues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "artifact_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "comfyui_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflow": {
+          "type": "string"
+        },
+        "gpu": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profile": {
+          "type": "string"
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": [
+        "artifact_id",
+        "status"
+      ],
+      "properties": {
+        "artifact_id": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "version": {
+          "type": "integer"
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "checksum": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

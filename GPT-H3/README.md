@@ -1,200 +1,180 @@
 # GPT-H3
 
-MiniMax-H3 / ComfyUI V6.5 integration project.
+## MiniMax-H3 + Qwen-Image-2.1 + ComfyUI automated 3D short-video system
+
+This project is an agent-independent production architecture for creating stylized 3D animated shorts locally with ComfyUI.
+
+The three upstream systems have deliberately different roles:
+
+| Upstream | Role in GPT-H3 |
+|---|---|
+| MiniMax H3 | audiovisual shot generator; multimodal reference binding; native video + stereo audio; continuity-aware per-shot rendering |
+| Qwen Image 2.1 | character / prop / environment / storyboard image factory; multi-reference editing; transparent asset generation; image-edit revision |
+| ComfyUI / workflow_templates | execution graph, model loading/offload, caching, API queueing, reusable subgraphs, templates, provenance, and workflow packaging |
+
+The production system does **not** make any of these three repositories the agent itself.
+
+## Target architecture
+
+```
+USER IDEA
+   │
+   ▼
+PROJECT IR / CONTEXT-IR
+   │
+   ├── story bible
+   ├── character cards
+   ├── scene cards
+   ├── props
+   ├── shot table
+   ├── text storyboards
+   └── continuity state
+   │
+   ▼
+QWEN IMAGE 2.1 ASSET FACTORY
+   │
+   ├── T2I character / scene / prop concepts
+   ├── multi-reference edits
+   ├── 3D-style visual development
+   ├── transparent RGBA assets
+   └── asset revision
+   │
+   ▼
+H3 PROMPT COMPILER
+   │
+   ▼
+GPT-H3 / V6.5 SHOT ENGINE
+   │
+   ├── DaSiWa Hybrid Turbo V3 INT8
+   ├── H3StreamedBlocks
+   ├── Veda Sparse Attention
+   ├── MotionContext continuity
+   ├── H3 Video + Audio latent
+   ├── normal H3 INT8 VAE
+   └── V6.5 FaceRefine / Stitch / audit
+   │
+   ├─────────────── optional fast branch
+   │
+   ▼
+H3 X2 Stream + X2 INT8 VAE + NVENC
+   │
+   ▼
+SHOT QA
+   │
+   ▼
+ASSEMBLY / BGM / FINAL QA
+   │
+   ▼
+PUBLISHED SHORT
+```
+
+## Why this architecture
+
+MiniMax's official H3 documentation describes H3 as a unified text/image/video/audio generation system, with H3-Base FL2VA and Ref2VA task families, native audiovisual latents, and a hosted H3-Context-IR layer. The official release says Context-IR is critical to final quality but is not part of the open-source release. GPT-H3 therefore implements a **local project IR / Context-IR-like contract** instead of depending on a proprietary agent runtime. citeturn481705view0
+
+Qwen-Image-2.1 is used before video generation because the official model is a 7B visual-generation component designed for text-to-image and image editing, with multi-reference editing and native transparency. It is not treated as a video model. citeturn533589view2
+
+ComfyUI is used as the execution substrate because its current architecture exposes reusable subgraphs, workflow templates, a local API, asynchronous queueing, partial graph re-execution, model offloading and quantized model support. The official workflow_templates repository separately maintains full templates and reusable subgraph blueprints. citeturn533589view0turn533589view1
+
+## 3D definition
+
+The primary project target is **stylized 3D animation**: C4D/Octane-like materials, cinematic lighting, strong silhouettes, expressive stylized character animation, and physically readable environments.
+
+An actual mesh / geometry production mode may be added later as an optional branch. It is not required for the primary H3 video path.
+
+## Core production profiles
+
+### QUALITY
+
+- DaSiWa Hybrid Turbo V3 INT8
+- H3StreamedBlocks
+- Veda generated sparsity: 90%
+- Veda reference sparsity: 0%
+- 8 steps
+- conventional H3 INT8 video VAE for the audited master
+- MotionContext + FaceRefine + Stitch + V6.5 audit
+
+### BALANCED
+
+- same as QUALITY
+- reference sparsity swept at 25 / 50 / 75 / 90%
+- choose the highest value that passes identity / motion / spatial-anchor QA
+
+### FAST
 
-## Current target
+- DaSiWa V3 INT8
+- Veda
+- 4 steps
+- optional H3 X2 Stream + X2 INT8 VAE + asynchronous NVENC
+- treated as a delivery/preview branch until it passes the same QA
 
-Integrate the uploaded **MiniMax-H3 V6.5** short-drama workflow with:
+## Upstream-source rules
 
-- **DaSiWa Hybrid Turbo V3 INT8**
-- **Veda Sparse Attention**
-- **V6.5 H3StreamedBlocks memory path**
-- **V6.5 MotionContext continuity**
-- **V6.5 FaceRefine / Stitch / audit path**
-- **H3 X2 Stream** as an optional final-decode side branch
+### MiniMax H3
 
-This project keeps the original V6.5 production path as the authoritative/rollback path.
+Use the official portable `h3-prompt-writing` skill where possible. It is explicitly documented as portable to agents that can read Markdown/local files. The separate official `3d-animation-short-generator` skill contains a strong production ordering, but its runtime binding is MiniMax Hub-specific; GPT-H3 ports its production logic into the local SOP rather than depending on Hub-only tools. citeturn791176view3
 
-## V6.5 node-level result
+### Qwen Image 2.1
 
-The uploaded V6.5 workflow contains 238 nodes and 318 links. The active model chain was:
+Use:
 
-`UNETLoader (DaSiWa REF2VA Hybrid V1)
-→ ModelAttentionBackend
-→ H3StreamedBlocks
-→ old Turbo V4 compatibility LoRA
-→ LMS LoRA
-→ Set_Video_Mode
-→ Get_Video_Mode
-→ BasicGuider
-→ Sampler`
+- T2I for initial asset creation
+- image edit for revisions
+- multi-reference edit for composing locked subjects/props/scenes
+- transparent RGBA output for isolated props when useful
+- official prompt enhancer only as an optional prompt-compilation stage
 
-The GPT-H3 revision changes this to:
+The official repository documents up to 10 reference images for multi-subject composition and native 2K image generation. citeturn791176view0
 
-`UNETLoader (DaSiWa Hybrid Turbo V3 INT8)
-→ ModelAttentionBackend
-→ H3StreamedBlocks
-→ Veda Sparse Attention
-→ Set_Video_Mode
-→ Get_Video_Mode
-→ BasicGuider
-→ euler / simple / 8-step sampler`
+### ComfyUI
 
-### Disabled legacy layers
+Use native workflows / blueprints as the implementation vocabulary. The current ComfyUI source exposes native H3 and Qwen Image 2.1 nodes, and the official workflow-template repository already carries H3 continuation/multiframe/reference workflows and Qwen Image 2.1 workflows.
 
-**Turbo V4 compatibility LoRA** is disabled. The V6.5 filename is explicitly tied to `DasiwaREF2VAHybridV1`; the selected V3 checkpoint is itself a Turbo variant, so the old V4 LoRA is not stacked.
+## Repository map
 
-**LMS LoRA** is disabled in the primary generation path. Its public documentation describes `minimax_h3_lms_v1.0_r64` as a guide-latent / aligned-source-video sharpening pass, while the uploaded V6.5 graph has no `MiniMaxH3AddGuide` node. It remains a backup component rather than being silently applied to native reference generation.
+```
+GPT-H3/
+├── AGENTS.md
+├── README.md
+├── ARCHITECTURE.md
+├── PIPELINE_SOP.md
+├── SKILLS.md
+├── ARTIFACT_CONTRACT.md
+├── MODEL_ROUTING.md
+├── HARDWARE.md
+├── SOURCE_REGISTRY.md
+├── VALIDATION.md
+├── V6.5_NODE_PATCH.json
+├── MODEL_MANIFEST.md
+├── pipeline_manifest.json
+├── skills/
+│   ├── h3-prompt-writing/
+│   ├── qwen-image-asset-factory/
+│   ├── comfyui-graph-engineering/
+│   ├── h3-v6.5-engineering/
+│   ├── continuity/
+│   └── qa-regression/
+└── workflows/
+    └── MiniMax-H3-GPT-H3-V6.5-integrated.json
+```
 
-## Veda placement
+The workflow JSON is a concrete implementation snapshot. The documents and manifests are the durable contract used by replacement agent frameworks.
 
-Use Veda after all effective model/LoRA patches and immediately before the Guider/Sampler path.
+## Current status
 
-Current project starting profile:
+Source research: completed against current official repositories.
 
-- predictor: `minimax_h3_t2va_veda_8nfe_600step_preview_fp8.safetensors`
-- generated_sparsity: **90%**
-- reference_sparsity: **0%**
-- full_attention_layers: empty
-- full_attention_steps: empty
+Workflow design: completed.
 
-The 0% reference setting is a conservative project choice for the reference-heavy V6.5 workflow. It is not Veda's default training value.
+V6.5 integration JSON: generated from the uploaded workflow.
 
-The Veda predictor is publicly documented as trained at 1344x768, 768x1344, 768x768 and 1024x768, at 5/10/14 s with an 8-step Turbo setup. Therefore the uploaded V6.5 1344x768 / 124-frame segment is a close size-duration match, while the exact DaSiWa hybrid task and any 4-step profile still require local A/B validation.
+Runtime execution: **not performed in this environment**.
 
-**Do not combine Veda with ComfyUI's native `Model Sparse Attention` / `BlockSparseAttention` on the same H3 model.**
+Hardware-specific claims for RTX 3080: must come from local validation, not transferred from other GPUs.
 
-## Sampling
+## Sources
 
-The original V6.5 graph used a custom 6-step ManualSigmas node. GPT-H3 replaces that active schedule with:
-
-- sampler: **euler**
-- scheduler: **simple**
-- steps: **8**
-- denoise: **1.0**
-
-This is an engineering baseline chosen to be closer to the Veda predictor's documented 8-step Turbo training distribution. It is not a claim that 8 steps is universally optimal for DaSiWa V3.
-
-A separate **4-step Fast profile** should be benchmarked after the 8-step baseline is visually stable.
-
-## V6.5 continuity and face pipeline
-
-These remain in place:
-
-`MotionContextLoadLatent
-→ MiniMaxH3MotionContext_ContinuityGuard
-→ sampler
-→ H3FreeCache
-→ normal H3 VAEDecode / VAEDecodeAudio
-→ MotionContextTrim
-→ FaceTrackCrop
-→ FaceRefine
-→ FaceStitch
-→ H3V64TrackedSave
-→ approval merge`
-
-The Veda layer operates on MODEL attention and does not change the MotionContext latent-cache protocol.
-
-The existing **normal H3 video VAE** stays in the conditioning and IMAGE-processing path:
-
-`minimax_h3_video_vae_int8_convrot.safetensors`
-
-The **audio VAE** stays:
-
-`minimax_h3_audio_vae_fp32.safetensors`
-
-## H3 X2 Stream integration
-
-H3 X2 Stream is included as a **separate side branch**, disabled by default.
-
-Branch:
-
-`H3FreeCache samples
-→ H3X2StreamSave(samples, X2 INT8 VAE, existing audio)`
-
-The X2 INT8 VAE is prepared once with:
-
-- source: `MiniMax-H3-X2-Detail-v1.safetensors`
-- prepared: `MiniMax-H3-X2-Detail-v1-decoder-int8-convrot.safetensors`
-
-### Why it is not the main V6.5 decode
-
-`H3X2StreamSave` is a streaming LATENT→VAE→video-save node and does not provide the full IMAGE batch used by the V6.5 face-processing chain.
-
-Therefore the safe topology is:
-
-**Production master:** conventional decode + FaceRefine + audit.
-
-**Fast X2:** optional latent-side stream output.
-
-Do not replace the only V6.5 `VAEDecode` with X2 Stream.
-
-This project does **not** claim that the X2-streamed file contains the IMAGE-space face refinement result. Achieving that would require a different post-face latent/re-encode design and must be engineered separately.
-
-## H3StreamedBlocks vs H3 X2 FFN chunking
-
-The uploaded V6.5 graph already uses `H3StreamedBlocks` with:
-
-- q_chunk 16384
-- kv_chunk 16384
-- mlp_chunk 16384
-- min_tokens 32768
-- kv_store bf16 (exact)
-- trim_forward true
-
-GPT-H3 keeps this memory path.
-
-The X2 repository also exposes `H3X2ChunkFeedForward`. It is **not stacked automatically** in the merged V6.5 path because both mechanisms chunk H3 feed-forward execution. The safe rule is to add the X2-specific FFN wrapper only after a controlled benchmark proves a benefit without conflicting with the existing stream-block patch.
-
-## Compatibility notes
-
-Veda currently documents ComfyUI >= 0.38.0 and a Triton sparse path covering SM80+ NVIDIA cards, but its RTX 30 path is documented as code-ready and not hardware-validated by the project.
-
-The public H3 X2 Stream example was tested on a 0.37.0 ComfyUI revision. The two projects therefore do not share a single documented compatibility point.
-
-**Recommended runtime policy:** use a current ComfyUI 0.38+ environment required by Veda, then explicitly validate H3 X2 Stream on that same environment. Keep the conventional VAE branch as the rollback path.
-
-## Launch-level optimization
-
-The fourthplace43 H3 VAE test documents the optional ComfyUI launch flag:
-
-`--fast fp16_accumulation`
-
-This is a runtime setting, not a workflow node. Only add it after checking the actual PyTorch / CUDA / ComfyUI environment.
-
-## Validation policy
-
-Do not change all optimization layers at once.
-
-Recommended sequence:
-
-1. **A0 Dense** — DaSiWa V3 + H3StreamedBlocks + conventional H3 VAE.
-2. **A1 Veda** — A0 + Veda 90% generated / 0% reference.
-3. **A2 Reference sweep** — compare reference sparsity 25/50/75/90%.
-4. **A3 X2 Stream** — A2 + X2 INT8 decode side branch.
-5. **A4 Fast** — compare 4 steps vs 8 steps with the same seed set.
-
-For every A/B run keep prompt, resolution, frame count and seed fixed. Record sampling time, VAE time, output/save time and wall time separately.
-
-## Source material
-
-- Veda: https://github.com/veda-sparse/Veda-on-ComfyUI
-- Jev sparse comparison: https://fourthplace43.com/labs/jev-sparse-comparison/en/
-- H3 VAE quality report: https://fourthplace43.com/labs/h3-vae-quality/en/
-- H3 X2 Stream: https://github.com/sepiablue-ai/ComfyUI-H3-X2-Stream
-- DaSiWa reference page: https://civitai.com/models/2877206/dasiwa-minimax-h3
-
-## Repository policy
-
-Do not commit MiniMax-H3, DaSiWa, Veda predictor, X2 VAE or other multi-GB model weights into this repository.
-
-Keep:
-
-- workflow JSON / patch
-- model manifest
-- runtime requirements
-- benchmark logs
-- A/B decisions
-- rollback rules
-
-Runtime-tested facts must be clearly separated from model-card claims and engineering hypotheses.
+- MiniMax H3: https://github.com/MiniMax-AI/MiniMax-H3
+- Qwen Image 2.1: https://github.com/QwenLM/Qwen-Image-2.1
+- ComfyUI: https://github.com/Comfy-Org/ComfyUI
+- ComfyUI workflow templates: https://github.com/Comfy-Org/workflow_templates
