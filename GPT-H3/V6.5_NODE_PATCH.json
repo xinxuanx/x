@@ -1,0 +1,114 @@
+{
+  "project": "GPT-H3",
+  "source_workflow": "MiniMax-H3一键无限短剧V6.5(2).json",
+  "source_sha256": "c8ba402dacf98bce046710d5c039c134d563a37d03a9a254486e692563413447",
+  "generated_workflow_local": "MiniMax-H3-GPT-H3-V6.5-integrated.json",
+  "runtime_tested": false,
+  "changes": {
+    "model": {
+      "node_id": 2367,
+      "old": "DasiwaMinimaxH3_dasiwaREF2VAHybridV1.safetensors",
+      "new": "DasiwaMinimaxH3_dasiwaHybridTurboV3_int8.safetensors"
+    },
+    "disabled_nodes": [
+      {
+        "node_id": 2274,
+        "reason": "legacy Turbo V4 compatibility LoRA tied to the old V1 model family"
+      },
+      {
+        "node_id": 2388,
+        "reason": "LMS public workflow is guide-latent based; uploaded V6.5 has no MiniMaxH3AddGuide"
+      }
+    ],
+    "added_nodes": [
+      {
+        "node_id": 2396,
+        "type": "VedaSparseAttention",
+        "role": "MODEL-wire learned sparse attention"
+      },
+      {
+        "node_id": 2400,
+        "type": "BasicScheduler",
+        "role": "simple / 8 steps active schedule"
+      },
+      {
+        "node_id": 2401,
+        "type": "H3X2PrepareINT8VAE",
+        "role": "one-time X2 INT8 VAE preparation"
+      },
+      {
+        "node_id": 2402,
+        "type": "H3X2StreamSave",
+        "role": "optional LATENT→X2 VAE→NVENC side output",
+        "default_mode": 4
+      },
+      {
+        "node_id": 2403,
+        "type": "MarkdownNote",
+        "role": "X2 branch limitation"
+      },
+      {
+        "node_id": 2404,
+        "type": "MarkdownNote",
+        "role": "GPT-H3 integration instructions"
+      }
+    ],
+    "rewired_links": [
+      {
+        "from": "2338.MODEL",
+        "to": "2396.model",
+        "link": 6026
+      },
+      {
+        "from": "2396.MODEL",
+        "to": "282.MODEL",
+        "link": 6027
+      },
+      {
+        "from": "713.MODEL",
+        "to": "2400.model",
+        "link": 6030
+      },
+      {
+        "from": "2400.SIGMAS",
+        "to": "1933.sigmas",
+        "link": 6028
+      },
+      {
+        "from": "2341.samples",
+        "to": "2402.samples",
+        "link": 6031
+      },
+      {
+        "from": "2401.vae",
+        "to": "2402.vae",
+        "link": 6032
+      },
+      {
+        "from": "1935.AUDIO",
+        "to": "2402.audio",
+        "link": 6033
+      }
+    ]
+  },
+  "veda_profile": {
+    "predictor": "minimax_h3_t2va_veda_8nfe_600step_preview_fp8.safetensors",
+    "generated_sparsity": "90%",
+    "reference_sparsity": "0%",
+    "full_attention_layers": "",
+    "full_attention_steps": ""
+  },
+  "main_sampling": {
+    "sampler": "euler",
+    "scheduler": "simple",
+    "steps": 8,
+    "denoise": 1,
+    "fast_profile_steps": 4
+  },
+  "x2_stream": {
+    "enabled_by_default": false,
+    "source_vae": "MiniMax-H3-X2-Detail-v1.safetensors",
+    "prepared_vae": "MiniMax-H3-X2-Detail-v1-decoder-int8-convrot.safetensors",
+    "note": "X2 Stream does not provide the IMAGE batch required by the V6.5 face-refine/stitch path."
+  }
+}
