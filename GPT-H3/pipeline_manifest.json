@@ -1,0 +1,75 @@
+{
+  "project": "GPT-H3",
+  "version": "0.2.0",
+  "goal": "Automated stylized 3D short-video production in ComfyUI with replaceable agent harnesses",
+  "agent_harness": "replaceable",
+  "runtime": {
+    "engine": "ComfyUI",
+    "automation": "local API + WebSocket",
+    "graph_format": "ComfyUI workflow JSON"
+  },
+  "upstream": {
+    "video": "MiniMax-AI/MiniMax-H3",
+    "image": "QwenLM/Qwen-Image-2.1",
+    "runtime": "Comfy-Org/ComfyUI",
+    "templates": "Comfy-Org/workflow_templates"
+  },
+  "skills": [
+    "h3-prompt-writing",
+    "3d-animation-short-generator",
+    "qwen-image-asset-factory",
+    "qwen-image-prompt-compiler",
+    "comfyui-graph-engineering",
+    "h3-v6.5-engineering",
+    "continuity",
+    "qa-regression",
+    "resource-mutex",
+    "artifact-lineage"
+  ],
+  "stages": [
+    "intake",
+    "story",
+    "assets",
+    "shot_table",
+    "storyboard",
+    "prompt_compile",
+    "shot_render",
+    "shot_qc",
+    "assembly",
+    "final_qc",
+    "publish"
+  ],
+  "primary_video_profile": {
+    "model": "DasiwaMinimaxH3_dasiwaHybridTurboV3_int8.safetensors",
+    "steps": 8,
+    "sampler": "euler",
+    "scheduler": "simple",
+    "veda_generated_sparsity": "90%",
+    "veda_reference_sparsity": "0%",
+    "legacy_turbo_v4": false,
+    "lms_primary_path": false,
+    "x2_stream_primary_path": false
+  },
+  "master_output_profile": {
+    "vae": "minimax_h3_video_vae_int8_convrot.safetensors",
+    "audio_vae": "minimax_h3_audio_vae_fp32.safetensors",
+    "face_refine": true,
+    "audit": true
+  },
+  "fast_output_profile": {
+    "x2_stream": true,
+    "enabled_by_default": false
+  },
+  "quality_gate": {
+    "max_shot_seconds": 15,
+    "requires_shot_table_check": true,
+    "requires_identity_check": true,
+    "requires_spatial_anchor_check": true,
+    "requires_audio_check": true
+  },
+  "runtime_status": {
+    "source_research": "passed",
+    "workflow_design": "passed",
+    "runtime_execution": "not_run"
+  }
+}
