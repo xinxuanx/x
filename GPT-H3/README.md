@@ -8,79 +8,101 @@ The three upstream systems have deliberately different roles:
 
 | Upstream | Role in GPT-H3 |
 |---|---|
-| MiniMax H3 | audiovisual shot generator; multimodal reference binding; native video + stereo audio; continuity-aware per-shot rendering |
-| Qwen Image 2.1 | character / prop / environment / storyboard image factory; multi-reference editing; transparent asset generation; image-edit revision |
-| ComfyUI / workflow_templates | execution graph, model loading/offload, caching, API queueing, reusable subgraphs, templates, provenance, and workflow packaging |
+| MiniMax H3 | audiovisual shot generator; multimodal reference binding; native video + stereo audio; per-shot rendering |
+| Qwen Image 2.1 | character / prop / environment / storyboard image factory; multi-reference editing; transparent asset generation; image revision |
+| ComfyUI / workflow_templates | executable graph; model loading/offload; caching; API queueing; reusable subgraphs; templates; provenance |
 
-The production system does **not** make any of these three repositories the agent itself.
+The production system does **not** make any of these repositories the agent itself.
 
 ## Target architecture
 
 ```
 USER IDEA
-   │
-   ▼
-PROJECT IR / CONTEXT-IR
-   │
-   ├── story bible
-   ├── character cards
-   ├── scene cards
-   ├── props
-   ├── shot table
-   ├── text storyboards
-   └── continuity state
-   │
-   ▼
+   |
+   v
+PROJECT IR / CONTEXT-IR CONTRACT
+   |
+   +-- story bible
+   +-- character cards
+   +-- scene cards
+   +-- prop cards
+   +-- shot table
+   +-- text storyboards
+   +-- continuity state
+   |
+   v
 QWEN IMAGE 2.1 ASSET FACTORY
-   │
-   ├── T2I character / scene / prop concepts
-   ├── multi-reference edits
-   ├── 3D-style visual development
-   ├── transparent RGBA assets
-   └── asset revision
-   │
-   ▼
+   |
+   +-- T2I character / scene / prop concepts
+   +-- multi-reference edits
+   +-- 3D-style visual development
+   +-- transparent RGBA assets
+   +-- asset revision
+   |
+   v
 H3 PROMPT COMPILER
-   │
-   ▼
+   |
+   v
 GPT-H3 / V6.5 SHOT ENGINE
-   │
-   ├── DaSiWa Hybrid Turbo V3 INT8
-   ├── H3StreamedBlocks
-   ├── Veda Sparse Attention
-   ├── MotionContext continuity
-   ├── H3 Video + Audio latent
-   ├── normal H3 INT8 VAE
-   └── V6.5 FaceRefine / Stitch / audit
-   │
-   ├─────────────── optional fast branch
-   │
-   ▼
+   |
+   +-- DaSiWa Hybrid Turbo V3 INT8
+   +-- H3StreamedBlocks
+   +-- Veda Sparse Attention
+   +-- MotionContext continuity
+   +-- H3 video + audio latent
+   +-- normal H3 INT8 VAE
+   +-- V6.5 FaceRefine / Stitch / audit
+   |
+   +---------------- optional fast branch
+   |
+   v
 H3 X2 Stream + X2 INT8 VAE + NVENC
-   │
-   ▼
+   |
+   v
 SHOT QA
-   │
-   ▼
+   |
+   v
 ASSEMBLY / BGM / FINAL QA
-   │
-   ▼
+   |
+   v
 PUBLISHED SHORT
 ```
 
-## Why this architecture
+## Architecture principle
 
-MiniMax's official H3 documentation describes H3 as a unified text/image/video/audio generation system, with H3-Base FL2VA and Ref2VA task families, native audiovisual latents, and a hosted H3-Context-IR layer. The official release says Context-IR is critical to final quality but is not part of the open-source release. GPT-H3 therefore implements a **local project IR / Context-IR-like contract** instead of depending on a proprietary agent runtime. citeturn481705view0
+MiniMax's official H3 release defines a three-module system around H3-Context-IR, H3-Base and H3-Regenerate-2K. Context-IR handles instruction parsing, cross-modal association, temporal understanding and reasoning before generation; the hosted Context-IR implementation is not open sourced. GPT-H3 therefore defines a local **Project IR** that plays the same architectural role without claiming to reproduce MiniMax's private implementation.
 
-Qwen-Image-2.1 is used before video generation because the official model is a 7B visual-generation component designed for text-to-image and image editing, with multi-reference editing and native transparency. It is not treated as a video model. citeturn533589view2
+Qwen Image 2.1 is the visual asset layer, not the video layer. Its official release combines text-to-image and image editing, supports multi-reference editing and native transparency, and is natively supported by current ComfyUI templates.
 
-ComfyUI is used as the execution substrate because its current architecture exposes reusable subgraphs, workflow templates, a local API, asynchronous queueing, partial graph re-execution, model offloading and quantized model support. The official workflow_templates repository separately maintains full templates and reusable subgraph blueprints. citeturn533589view0turn533589view1
+ComfyUI is the execution substrate. The current project uses its workflow JSON, reusable subgraph/blueprint model, local API, WebSocket monitoring, asynchronous queueing, partial graph execution, offloading and quantized model support.
 
 ## 3D definition
 
-The primary project target is **stylized 3D animation**: C4D/Octane-like materials, cinematic lighting, strong silhouettes, expressive stylized character animation, and physically readable environments.
+The current target is **stylized 3D animation**, not a requirement that every shot originate from a polygonal mesh.
 
-An actual mesh / geometry production mode may be added later as an optional branch. It is not required for the primary H3 video path.
+Default visual target:
+- stylized feature-film 3D
+- C4D / Octane-like material language
+- cinematic lighting
+- readable silhouettes
+- expressive squash-and-stretch animation
+- persistent environment landmarks
+
+### Optional geometry mode
+
+A later extension may add:
+
+```
+Qwen Image 2.1 visual development
+    ->
+3D reconstruction / mesh generation
+    ->
+turntable / render references
+    ->
+H3 shot generation
+```
+
+This is deliberately optional. The current GPT-H3 production path does not claim that Qwen Image 2.1 or H3 itself is a polygonal 3D asset generator.
 
 ## Core production profiles
 
@@ -91,14 +113,12 @@ An actual mesh / geometry production mode may be added later as an optional bran
 - Veda generated sparsity: 90%
 - Veda reference sparsity: 0%
 - 8 steps
-- conventional H3 INT8 video VAE for the audited master
+- conventional H3 INT8 video VAE for audited master
 - MotionContext + FaceRefine + Stitch + V6.5 audit
 
 ### BALANCED
 
-- same as QUALITY
-- reference sparsity swept at 25 / 50 / 75 / 90%
-- choose the highest value that passes identity / motion / spatial-anchor QA
+Same as QUALITY, then sweep reference sparsity at 25 / 50 / 75 / 90% and choose the highest value that passes identity, motion and spatial-anchor QA.
 
 ### FAST
 
@@ -106,71 +126,108 @@ An actual mesh / geometry production mode may be added later as an optional bran
 - Veda
 - 4 steps
 - optional H3 X2 Stream + X2 INT8 VAE + asynchronous NVENC
-- treated as a delivery/preview branch until it passes the same QA
+- remains a delivery/preview branch until it passes the same QA
 
-## Upstream-source rules
+## Upstream rules
 
 ### MiniMax H3
 
-Use the official portable `h3-prompt-writing` skill where possible. It is explicitly documented as portable to agents that can read Markdown/local files. The separate official `3d-animation-short-generator` skill contains a strong production ordering, but its runtime binding is MiniMax Hub-specific; GPT-H3 ports its production logic into the local SOP rather than depending on Hub-only tools. citeturn791176view3
+Use the official portable `h3-prompt-writing` skill where possible.
+
+Port the logic of the official `3d-animation-short-generator` skill:
+
+story -> assets -> shot table -> self-check -> storyboard -> video -> assembly -> final QA
+
+Do not port MiniMax Hub-only runtime assumptions into the core system.
 
 ### Qwen Image 2.1
 
 Use:
-
-- T2I for initial asset creation
-- image edit for revisions
-- multi-reference edit for composing locked subjects/props/scenes
-- transparent RGBA output for isolated props when useful
-- official prompt enhancer only as an optional prompt-compilation stage
-
-The official repository documents up to 10 reference images for multi-subject composition and native 2K image generation. citeturn791176view0
+- T2I for initial character / scene / prop development
+- image edit for repair and controlled revisions
+- multi-reference edit for combining locked visual sources
+- RGBA output for isolated assets when useful
+- official PE-T2I / PE-I2I models as an optional prompt compiler
 
 ### ComfyUI
 
-Use native workflows / blueprints as the implementation vocabulary. The current ComfyUI source exposes native H3 and Qwen Image 2.1 nodes, and the official workflow-template repository already carries H3 continuation/multiframe/reference workflows and Qwen Image 2.1 workflows.
+Use:
+- native H3 nodes
+- native Qwen Image 2.1 nodes
+- workflow templates as full application graphs
+- subgraphs/blueprints as reusable production modules
+- API + WebSocket for automation
 
 ## Repository map
 
 ```
 GPT-H3/
-├── AGENTS.md
-├── README.md
-├── ARCHITECTURE.md
-├── PIPELINE_SOP.md
-├── SKILLS.md
-├── ARTIFACT_CONTRACT.md
-├── MODEL_ROUTING.md
-├── HARDWARE.md
-├── SOURCE_REGISTRY.md
-├── VALIDATION.md
-├── V6.5_NODE_PATCH.json
-├── MODEL_MANIFEST.md
-├── pipeline_manifest.json
-├── skills/
-│   ├── h3-prompt-writing/
-│   ├── qwen-image-asset-factory/
-│   ├── comfyui-graph-engineering/
-│   ├── h3-v6.5-engineering/
-│   ├── continuity/
-│   └── qa-regression/
-└── workflows/
-    └── MiniMax-H3-GPT-H3-V6.5-integrated.json
+|-- AGENTS.md
+|-- README.md
+|-- ARCHITECTURE.md
+|-- PIPELINE_SOP.md
+|-- SKILLS.md
+|-- ARTIFACT_CONTRACT.md
+|-- ADAPTER_CONTRACT.md
+|-- PROJECT_IR.schema.json
+|-- MODEL_ROUTING.md
+|-- HARDWARE.md
+|-- SOURCE_REGISTRY.md
+|-- VALIDATION.md
+|-- V6.5_NODE_PATCH.json
+|-- MODEL_MANIFEST.md
+|-- pipeline_manifest.json
+|-- skills/
+|   |-- 3d-animation-short-generator/SKILL.md
+|   |-- h3-prompt-writing/SKILL.md
+|   |-- qwen-image-asset-factory/SKILL.md
+|   |-- qwen-image-prompt-compiler/SKILL.md
+|   |-- comfyui-graph-engineering/SKILL.md
+|   |-- h3-v6.5-engineering/SKILL.md
+|   |-- continuity/SKILL.md
+|   |-- qa-regression/SKILL.md
+|   |-- resource-mutex/SKILL.md
+|   |-- artifact-lineage/SKILL.md
+|-- workflows/
+|   |-- MiniMax-H3-GPT-H3-V6.5-integrated.json
+|   +-- ...
 ```
 
-The workflow JSON is a concrete implementation snapshot. The documents and manifests are the durable contract used by replacement agent frameworks.
+## How a replacement agent uses the repository
+
+The new agent does not need prior conversation memory.
+
+Read:
+
+1. `AGENTS.md`
+2. `ARCHITECTURE.md`
+3. `PIPELINE_SOP.md`
+4. `SKILLS.md`
+5. `ADAPTER_CONTRACT.md`
+6. `PROJECT_IR.schema.json`
+7. `MODEL_ROUTING.md`
+8. `HARDWARE.md`
+9. current workflow + `V6.5_NODE_PATCH.json`
+
+Then implement the same contracts using the new agent's own tool syntax.
 
 ## Current status
 
-Source research: completed against current official repositories.
+Source research: complete against the current official repositories.
 
-Workflow design: completed.
+Workflow design: complete.
 
-V6.5 integration JSON: generated from the uploaded workflow.
+V6.5 integration workflow: generated from the uploaded V6.5 workflow.
+
+Portable skill contracts: added.
+
+Project IR schema: added.
 
 Runtime execution: **not performed in this environment**.
 
-Hardware-specific claims for RTX 3080: must come from local validation, not transferred from other GPUs.
+RTX 3080 / Veda timings: must come from local validation rather than transferred benchmarks.
+
+No multi-GB model weights are stored in Git.
 
 ## Sources
 
@@ -178,3 +235,5 @@ Hardware-specific claims for RTX 3080: must come from local validation, not tran
 - Qwen Image 2.1: https://github.com/QwenLM/Qwen-Image-2.1
 - ComfyUI: https://github.com/Comfy-Org/ComfyUI
 - ComfyUI workflow templates: https://github.com/Comfy-Org/workflow_templates
+- Veda Sparse Attention: https://github.com/veda-sparse/Veda-on-ComfyUI
+- H3 X2 Stream: https://github.com/sepiablue-ai/ComfyUI-H3-X2-Stream
